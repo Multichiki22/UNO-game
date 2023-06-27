@@ -45,15 +45,15 @@ class unoGame {
     else return false;
   }
 
-   skipTurn() {
-    if ((this.direction == "+")) {
+  skipTurn() {
+    if (this.direction == "+") {
       if (this.turn == this.players.length - 1) this.turn = 0;
       else this.turn++;
     } else {
       if (this.turn == 0) this.turn = this.players.length - 1;
       else this.turn--;
     }
-   }
+  }
 
   reverseDirection() {
     if (this.direction == "+") this.direction = "-";
@@ -110,8 +110,8 @@ class unoGame {
   }
 
   playerDrawCard(player) {
-    if (!this.isPlayerTurn(player)) return "NOT Player turn";
-    const drawedCard = this.drawCard()
+    if (this.isPlayerTurn(player) !== true) return this.isPlayerTurn(player);
+    const drawedCard = this.drawCard();
     if (drawedCard !== false) this.playersCards[player].push(drawedCard);
     else {
       this.endTurn();
@@ -189,12 +189,13 @@ class unoGame {
   }
 
   isPlayerTurn(player) {
-    return this.players[this.turn] == player;
+    const actualPlayer = this.players[this.turn];
+    if (actualPlayer == player) return true;
+    else return `Not Player turn. Current turn ${actualPlayer}`;
   }
 
   playerPutCard(player, card) {
-    console.log(player, "turn? :", this.isPlayerTurn(player));
-    if (!this.isPlayerTurn(player)) return "NOT Player turn";
+    if (this.isPlayerTurn(player) !== true) return this.isPlayerTurn(player);
     if (this.playerHavecard(player, card) === false)
       return "You dont have this card";
     if (!this.isValidCard(card))
@@ -225,9 +226,11 @@ class unoGame {
     this.trash.push(card);
     this.currentColor = color;
     this.currentValue = value;
+    let aux = false;
     if (special) {
       if (value === "+4" || value === "Color Change") {
         this.currentColor = colorChange;
+        aux = true;
       }
       if (value[0] == "+") {
         this.currentSum = this.currentSum + parseInt(value[1]);
@@ -239,25 +242,31 @@ class unoGame {
         this.skipTurn();
       }
     }
-    this.endTurn(player);
-    return `Jugador ${player} Puso: ${color} ${value}`;
+    const endTurnText = this.endTurn(player);
+    if (endTurnText !== false) {
+      if (aux == true) {
+        return `Jugador ${player} Puso: ${color} ${value} y cambio el color a ${colorChange} \n ${endTurnText}`;
+      } else {
+        `Jugador ${player} Puso: ${color} ${value} \n ${endTurnText}`;
+      }
+    } else if (aux == true)
+      return `Jugador ${player} Puso: ${color} ${value} y cambio el color a ${colorChange}`;
+    else return `Jugador ${player} Puso: ${color} ${value}`;
   }
 
   endTurn(currentPlayer) {
     if (!currentPlayer) {
       currentPlayer = this.players[this.turn];
     }
-    
-    if (this.isPlayerWin(currentPlayer)) console.log("endTurn 250: ", `Jugador ${currentPlayer} gano`);
     if (this.isPlayerWin(currentPlayer)) return `Jugador ${currentPlayer} gano`;
     this.nextTurn();
     if (this.isPlayerUno(currentPlayer))
-    console.log("End Turn 253: ",`Jugador ${currentPlayer} tiene una carta`);
-    return `Jugador ${currentPlayer} tiene una carta`;
+      return `Jugador ${currentPlayer} tiene una carta`;
+    else return false;
   }
 
   nextTurn() {
-    if ((this.direction == "+")) {
+    if (this.direction == "+") {
       if (this.turn == this.players.length - 1) this.turn = 0;
       else this.turn++;
     } else {
@@ -265,7 +274,6 @@ class unoGame {
       else this.turn--;
     }
     this.nextPlayerValidation();
-    
   }
 
   nextPlayerValidation() {
@@ -279,7 +287,6 @@ class unoGame {
       return `Jugador ${nextPlayer} fue forzado a tomar una carta`;
     }
   }
-
 }
 
 const jugadores = ["luis", "miguel", "zaniel", "drew"];
@@ -288,56 +295,116 @@ const uno = new unoGame(jugadores);
 
 uno.start();
 
-uno.putCard(
-  { special: true, color: "comodin", value: "Color Change" },
-  "luis",
-  "Amarillo"
+console.log(
+  uno.putCard(
+    { special: true, color: "comodin", value: "Color Change" },
+    "luis",
+    "Amarillo"
+  ),
+
+  "\n",
+
+  uno.putCard({ special: true, color: "Amarillo", value: "¡Salto!" }, "miguel"),
+
+  "\n",
+
+  uno.putCard({ special: true, color: "Amarillo", value: "¡Salto!" }, "zaniel"), //invalid
+
+  "\n",
+
+  uno.putCard({ special: false, color: "Amarillo", value: 5 }, "drew"),
+
+  "\n",
+
+  uno.putCard(
+    { special: true, color: "comodin", value: "Color Change" },
+    "luis",
+    "rojo"
+  ),
+
+  "\n",
+
+  uno.putCard(
+    { special: true, color: "Amarillo", value: "+2" },
+    "miguel",
+    "Azul"
+  ), //invalid
+
+  "\n",
+
+  uno.putCard({ special: true, color: "Amarillo", value: "+2" }, "luis"), //invalid
+
+  "\n",
+
+  uno.putCard({ special: true, color: "Amarillo", value: "+2" }, "luis"), //invalid
+
+  "\n",
+
+  uno.putCard({ special: true, color: COMODIN, value: "+4" }, "miguel", "Azul"),
+
+  "\n",
+
+  uno.putCard(
+    { special: true, color: COMODIN, value: "+4" },
+    "luis",
+    "Amarillo"
+  ),
+
+  "\n",
+
+  uno.putCard({ special: true, color: "Amarillo", value: "+2" }, "miguel"),
+
+  "\n",
+
+  uno.putCard({ special: true, color: "Amarillo", value: 0 }, "drew"),
+
+  "\n",
+
+  uno.putCard(
+    { special: true, color: COMODIN, value: "Color Change" },
+    "luis",
+    "Amarillo"
+  ),
+
+  "\n",
+
+  uno.putCard(
+    { special: true, color: "Amarillo", value: "¡Reversa!" },
+    "miguel"
+  ),
+
+  "\n",
+
+  uno.putCard({ special: true, color: COMODIN, value: "+4" }, "luis", "Azul"),
+
+  "\n",
+
+  uno.putCard({ special: true, color: "Azul", value: "¡Salto!" }, "zaniel"),
+
+  "\n",
+
+  uno.putCard({ special: true, color: "Amarillo", value: "¡Salto!" }, "miguel"), //invalid
+
+  "\n",
+
+  uno.putCard({ special: true, color: COMODIN, value: "+4" }, "luis", "Azul"),
+
+  "\n",
+
+  uno.putCard({ special: true, color: "Azul", value: "+2" }, "drew"),
+
+  "\n",
+
+  uno.putCard({ special: true, color: "Azul", value: "+2" }, "zaniel"),
+
+  "\n",
+
+  uno.putCard(
+    { special: true, color: COMODIN, value: "Color Change" },
+    "luis",
+    "Rojo"
+  )
 );
-
-uno.putCard({ special: true, color: "Amarillo", value: "¡Salto!" }, "miguel");
-
-uno.putCard({ special: true, color: "Amarillo", value: "¡Salto!" }, "zaniel"); //invalid
-
-uno.putCard({ special: false, color: "Amarillo", value: 5 }, "drew");
-
-uno.putCard(
-  { special: true, color: "comodin", value: "Color Change" },
-  "luis",
-  "rojo"
-);
-
-uno.putCard(
-  { special: true, color: "Amarillo", value: "+2" },
-  "miguel",
-  "Azul"
-); //invalid
-uno.putCard({ special: true, color: "Amarillo", value: "+2" }, "luis"); //invalid
-uno.putCard({ special: true, color: "Amarillo", value: "+2" }, "luis"); //invalid
-
-uno.putCard({ special: true, color: COMODIN, value: "+4" }, "miguel", "Azul");
-//so far so good
-uno.putCard({ special: true, color: COMODIN, value: "+4" }, "luis", "Amarillo");
-uno.putCard({ special: true, color: "Amarillo", value: "+2" }, "miguel");
-
-uno.putCard({ special: true, color: "Amarillo", value: 0 }, "drew");
-
-uno.putCard({ special: true, color: COMODIN, value: "Color Change" }, "luis", "Amarillo");
-
-uno.putCard({ special: true, color: "Amarillo", value: "¡Reversa!" }, "miguel");
-
-uno.putCard({ special: true, color: COMODIN, value: "+4" }, "luis", "Azul");
-
-uno.putCard({ special: true, color: "Azul", value: "¡Salto!" }, "zaniel");
-
-uno.putCard({ special: true, color: "Amarillo", value: "¡Salto!" }, "miguel");//invalid
-
-uno.putCard({ special: true, color: COMODIN, value: "+4" }, "luis", "Azul");
-
-uno.putCard({ special: true, color: "Azul", value: "+2" }, "drew");
-
-uno.putCard({ special: true, color: "Azul", value: "+2" }, "zaniel");
-
-uno.putCard({ special: true, color: COMODIN, value: "Color Change" }, "luis");
 /* try {
   const deck = JSON.stringify(this.deck);
   fs.writeFileSync("deck.json", deck);

@@ -1,3 +1,5 @@
+const fs = require("fs");
+
 function shuffle(array) {
   for (let i = array.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
@@ -8,6 +10,100 @@ function shuffle(array) {
 
 const COMODIN = "comodin";
 
+const TURN_ERROR = "Not player turn";
+const INVALID_CARD = "Invalid card put";
+const NOT_PLAYER_CARD = "The player dont have the selected card";
+const NOT_ENOUGH_CARDS = "not enough cards in deck";
+const NO_CARD_TO_TAKE = "no avalible card in deck";
+const PLAYER_PUT_CARD = "player put card";
+const PLAYER_FORCED_TO_DRAW = "player forced to draw cards";
+const PLAYER_WITHOUT_VALID_CARDS = "player dont have valid card"; //NO use rigth now (let the player take cards)
+const PLAYER_WIN = "player win";
+const PLAYER_TAKE_CARD = "Player took card";
+const PLAYER_UNO = "Player have one card";
+const SERVER_ACTION = "Server Action";
+const PLAYER_SKIP = "Player used skip card";
+const ERROR = "error";
+
+//const PLAYER_WIN = "player dont have valid card"
+
+function messageObjectGenerator(infoObject) {
+  const {
+    type,
+    player,
+    card,
+    actualPlayer,
+    currentColor,
+    currentValue,
+    drawedCards,
+    endTurnAction,
+    colorChange,
+    extraMessage,
+    nextPlayer,
+    skipedPlayer,
+  } = infoObject;
+  const basicObject = { type: "default", mesagge: "default message" };
+  switch (type) {
+    case TURN_ERROR:
+      basicObject.type = ERROR;
+      basicObject.mesagge = `Not your turn (${player}). Current turn ${actualPlayer}`;
+      break;
+    case INVALID_CARD:
+      basicObject.type = ERROR;
+      basicObject.mesagge = `Carta invalida, carta actual: ${currentColor} ${currentValue}`;
+      break;
+    case NOT_ENOUGH_CARDS:
+      basicObject.type = SERVER_ACTION;
+      basicObject.mesagge = `Jugador ${player} tomo ${drawedCards.length} cartas. no hay mas cartas para tomar`;
+      break;
+    case NO_CARD_TO_TAKE:
+      basicObject.type = SERVER_ACTION;
+      basicObject.mesagge = `No hay cartas para tomar`;
+      break;
+    case PLAYER_PUT_CARD:
+      basicObject.type = SERVER_ACTION;
+      if (colorChange !== undefined) {
+        basicObject.mesagge = `Jugador ${player} Puso: ${card.color} ${card.value} y cambio el color a ${colorChange}`;
+      } else {
+        basicObject.mesagge = `Jugador ${player} Puso: ${card.color} ${card.value}`;
+      }
+      break;
+    case PLAYER_FORCED_TO_DRAW:
+      basicObject.type = SERVER_ACTION;
+      basicObject.mesagge = `Jugador ${player} Fue forzado a tomar ${drawedCards.length} cartas`;
+      break;
+    case PLAYER_WITHOUT_VALID_CARDS:
+      basicObject.type = SERVER_ACTION;
+      basicObject.mesagge = `Jugador ${player} No tiene cartas validas: fue obligado a tomar una carta`;
+      break;
+    case PLAYER_WIN:
+      basicObject.type = SERVER_ACTION;
+      basicObject.mesagge = `Jugador ${player} gano`;
+      break;
+    case PLAYER_TAKE_CARD:
+      basicObject.type = SERVER_ACTION;
+      basicObject.mesagge = `Jugador ${player} tomo una carta`;
+      break;
+    case NOT_PLAYER_CARD:
+      basicObject.type = ERROR;
+      basicObject.mesagge = "You dont have this card";
+      break;
+    case PLAYER_UNO:
+      basicObject.type = SERVER_ACTION;
+      basicObject.mesagge = `Jugador ${player} tiene una carta`;
+      break;
+    case PLAYER_SKIP:
+      basicObject.type = SERVER_ACTION;
+      basicObject.mesagge = `${player} salto a ${skipedPlayer} siguiente turno ${nextPlayer}`;
+      break;
+    default:
+      break;
+  }
+  if (Array.isArray(extraMessage)) return [basicObject].concat(extraMessage);
+  else return [basicObject];
+}
+
+//pending playerTakeHit () //action to decide not to acumulate the sum even if the player actually have valid cards
 class unoGame {
   constructor(players, startingCards = 7) {
     this.startingCards = startingCards;
@@ -43,6 +139,16 @@ class unoGame {
   isPlayerUno(player) {
     if (this.playersCards[player].length === 1) return true;
     else return false;
+  }
+
+  nextPlayerTurn() {
+    if (this.direction == "+") {
+      if (this.turn == this.players.length - 1) return this.players[0];
+      else return this.players[this.turn + 1];
+    } else {
+      if (this.turn == 0) return this.players[this.players.length - 1];
+      else return this.players[this.turn - 1];
+    }
   }
 
   skipTurn() {
@@ -109,30 +215,6 @@ class unoGame {
     this.trash = [];
   }
 
-  playerDrawCard(player) {
-    if (this.isPlayerTurn(player) !== true) return this.isPlayerTurn(player);
-    const drawedCard = this.drawCard();
-    if (drawedCard !== false) this.playersCards[player].push(drawedCard);
-    else {
-      this.endTurn();
-      return `No cards to draw`;
-    }
-    this.endTurn();
-    return `Jugador ${player} Tomo una carta`;
-  }
-
-  playerDrawMultilpleCards(player, amount) {
-    const drawedCards = this.drawMultipleCards(amount);
-    this.playersCards[player] = this.playersCards[player].concat(drawedCards);
-    this.currentSum = 0;
-    if (drawedCards.length < amount) {
-      this.endTurn();
-      return `Jugador ${player} tomo ${drawedCards.length} cartas. no hay mas cartas para tomar`;
-    }
-    this.endTurn();
-    return `jugador ${player} tomo ${drawedCards.length} cartas.`;
-  }
-
   drawCard() {
     if (this.deck.length === 0 && this.trash.length === 0) return false;
     if (this.deck.length === 0) this.shuffleCards();
@@ -191,15 +273,20 @@ class unoGame {
   isPlayerTurn(player) {
     const actualPlayer = this.players[this.turn];
     if (actualPlayer == player) return true;
-    else return `Not Player turn. Current turn ${actualPlayer}`;
+    else
+      return messageObjectGenerator({ type: TURN_ERROR, player, actualPlayer });
   }
 
-  playerPutCard(player, card) {
+  putCard(player, card) {
     if (this.isPlayerTurn(player) !== true) return this.isPlayerTurn(player);
-    if (this.playerHavecard(player, card) === false)
-      return "You dont have this card";
+    if (this.playerHaveCard(player, card) === false)
+      return messageObjectGenerator({ type: NOT_PLAYER_CARD });
     if (!this.isValidCard(card))
-      return `Carta invalida, carta actual: ${this.currentColor} ${this.currentValue}`;
+      return messageObjectGenerator({
+        type: INVALID_CARD,
+        currentColor: this.currentColor,
+        currentValue: this.currentValue,
+      });
     const playerDeck = [...this.playersCards[player]];
     const cardIndexFound = playerDeck.findIndex(
       (playerCard) =>
@@ -209,7 +296,7 @@ class unoGame {
     return true;
   }
 
-  playerHavecard(player, card) {
+  playerHaveCard(player, card) {
     const playerDeck = this.playersCards[player];
     const cardIndexFound = playerDeck.findIndex(
       (playerCard) =>
@@ -218,19 +305,18 @@ class unoGame {
     if (cardIndexFound !== -1) return true;
     else return false;
   }
-
-  putCard(card, player, colorChange) {
-    const playerPlaceCard = this.playerPutCard(player, card);
+ 
+  playerPutCard(card, player, colorChange) {
+    const playerPlaceCard = this.putCard(player, card);
     if (playerPlaceCard !== true) return playerPlaceCard;
     const { value, color, special } = card;
     this.trash.push(card);
     this.currentColor = color;
     this.currentValue = value;
-    let aux = false;
+    let skipedPlayerAction = [];
     if (special) {
       if (value === "+4" || value === "Color Change") {
         this.currentColor = colorChange;
-        aux = true;
       }
       if (value[0] == "+") {
         this.currentSum = this.currentSum + parseInt(value[1]);
@@ -238,31 +324,83 @@ class unoGame {
         //reverse game direction
         this.reverseDirection();
       } else if (value == "¡Salto!") {
-        //Skip player
+        const skipedPlayer = this.nextPlayerTurn();
         this.skipTurn();
+        skipedPlayerAction = messageObjectGenerator({
+          type: PLAYER_SKIP,
+          player,
+          skipedPlayer,
+          nextPlayer: this.nextPlayerTurn(),
+        });
       }
     }
-    const endTurnText = this.endTurn(player);
-    if (endTurnText !== false) {
-      if (aux == true) {
-        return `Jugador ${player} Puso: ${color} ${value} y cambio el color a ${colorChange} \n ${endTurnText}`;
-      } else {
-        `Jugador ${player} Puso: ${color} ${value} \n ${endTurnText}`;
-      }
-    } else if (aux == true)
-      return `Jugador ${player} Puso: ${color} ${value} y cambio el color a ${colorChange}`;
-    else return `Jugador ${player} Puso: ${color} ${value}`;
+    const endTurnAction = this.endTurn(player);
+    const effectedActions = skipedPlayerAction.concat(endTurnAction);
+    return messageObjectGenerator({
+      type: PLAYER_PUT_CARD,
+      player,
+      colorChange,
+      card,
+      extraMessage: effectedActions,
+    });
   }
 
-  endTurn(currentPlayer) {
-    if (!currentPlayer) {
-      currentPlayer = this.players[this.turn];
+  endTurn(player) {
+    if (!player) {
+      player = this.players[this.turn];
     }
-    if (this.isPlayerWin(currentPlayer)) return `Jugador ${currentPlayer} gano`;
-    this.nextTurn();
-    if (this.isPlayerUno(currentPlayer))
-      return `Jugador ${currentPlayer} tiene una carta`;
-    else return false;
+    if (this.isPlayerWin(player))
+      return messageObjectGenerator({ type: PLAYER_WIN, player });
+    const nextTurnText = this.nextTurn();
+
+    if (this.isPlayerUno(player))
+      return messageObjectGenerator({
+        type: PLAYER_UNO,
+        player,
+        extraMessage: nextTurnText,
+      });
+    else return nextTurnText;
+  }
+
+  playerDrawCard(player) {
+    if (this.isPlayerTurn(player) !== true) return this.isPlayerTurn(player);
+    const drawedCard = this.drawCard();
+    if (drawedCard !== false) this.playersCards[player].push(drawedCard);
+    else {
+      const endTurnAction = this.endTurn();
+      return messageObjectGenerator({
+        type: NO_CARD_TO_TAKE,
+        extraMessage: endTurnAction,
+      });
+    }
+    const endTurnAction = this.endTurn();
+    return messageObjectGenerator({
+      type: PLAYER_TAKE_CARD,
+      player,
+      extraMessage: endTurnAction,
+    });
+  }
+
+  playerDrawMultilpleCards(player, amount) {
+    const drawedCards = this.drawMultipleCards(amount);
+    this.playersCards[player] = this.playersCards[player].concat(drawedCards);
+    this.currentSum = 0;
+    if (drawedCards.length < amount) {
+      const endTurnAction = this.endTurn();
+      return messageObjectGenerator({
+        type: NOT_ENOUGH_CARDS,
+        player,
+        drawedCards,
+        extraMessage: endTurnAction,
+      });
+    }
+    const endTurnAction = this.endTurn();
+    return messageObjectGenerator({
+      type: PLAYER_FORCED_TO_DRAW,
+      player,
+      drawedCards,
+      extraMessage: endTurnAction,
+    });
   }
 
   nextTurn() {
@@ -273,18 +411,18 @@ class unoGame {
       if (this.turn == 0) this.turn = this.players.length - 1;
       else this.turn--;
     }
-    this.nextPlayerValidation();
+    return this.nextPlayerValidation();
   }
 
   nextPlayerValidation() {
     const nextPlayer = this.players[this.turn];
     const nextPlayerValidCards = this.playerHasValidCards(nextPlayer);
     if (nextPlayerValidCards === false && this.currentSum > 0) {
-      this.playerDrawMultilpleCards(nextPlayer, this.currentSum);
-      return `Jugador ${nextPlayer} fue forzado a tomar ${this.currentSum} cartas`;
+      return this.playerDrawMultilpleCards(nextPlayer, this.currentSum);
     } else if (nextPlayerValidCards === false && this.currentSum == 0) {
-      this.playerDrawCard(nextPlayer);
-      return `Jugador ${nextPlayer} fue forzado a tomar una carta`;
+      return this.playerDrawCard(nextPlayer);
+    } else {
+      return false;
     }
   }
 }
@@ -295,120 +433,81 @@ const uno = new unoGame(jugadores);
 
 uno.start();
 
-console.log(
-  uno.putCard(
+const gameExecution = [
+  uno.playerPutCard(
     { special: true, color: "comodin", value: "Color Change" },
     "luis",
     "Amarillo"
   ),
 
-  "\n",
+  uno.playerPutCard({ special: true, color: "Amarillo", value: "¡Salto!" }, "miguel"),
+  //No SKIPED x Player message
 
-  uno.putCard({ special: true, color: "Amarillo", value: "¡Salto!" }, "miguel"),
+  uno.playerPutCard({ special: true, color: "Amarillo", value: "¡Salto!" }, "zaniel"), //invalid
 
-  "\n",
+  uno.playerPutCard({ special: false, color: "Amarillo", value: 5 }, "drew"),
 
-  uno.putCard({ special: true, color: "Amarillo", value: "¡Salto!" }, "zaniel"), //invalid
-
-  "\n",
-
-  uno.putCard({ special: false, color: "Amarillo", value: 5 }, "drew"),
-
-  "\n",
-
-  uno.putCard(
+  uno.playerPutCard(
     { special: true, color: "comodin", value: "Color Change" },
     "luis",
     "rojo"
   ),
 
-  "\n",
-
-  uno.putCard(
+  uno.playerPutCard(
     { special: true, color: "Amarillo", value: "+2" },
     "miguel",
     "Azul"
   ), //invalid
 
-  "\n",
+  uno.playerPutCard({ special: true, color: "Amarillo", value: "+2" }, "luis"), //invalid
 
-  uno.putCard({ special: true, color: "Amarillo", value: "+2" }, "luis"), //invalid
+  uno.playerPutCard({ special: true, color: "Amarillo", value: "+2" }, "luis"), //invalid
 
-  "\n",
-
-  uno.putCard({ special: true, color: "Amarillo", value: "+2" }, "luis"), //invalid
-
-  "\n",
-
-  uno.putCard({ special: true, color: COMODIN, value: "+4" }, "miguel", "Azul"),
-
-  "\n",
-
-  uno.putCard(
+  uno.playerPutCard({ special: true, color: COMODIN, value: "+4" }, "miguel", "Azul"),
+  //No Forced draaws messages //pending 2 forced Draws messages
+  uno.playerPutCard(
     { special: true, color: COMODIN, value: "+4" },
     "luis",
     "Amarillo"
   ),
 
-  "\n",
+  uno.playerPutCard({ special: true, color: "Amarillo", value: "+2" }, "miguel"),
+  //again pending 1 forced draw message
+  uno.playerPutCard({ special: true, color: "Amarillo", value: 0 }, "drew"),
 
-  uno.putCard({ special: true, color: "Amarillo", value: "+2" }, "miguel"),
-
-  "\n",
-
-  uno.putCard({ special: true, color: "Amarillo", value: 0 }, "drew"),
-
-  "\n",
-
-  uno.putCard(
+  uno.playerPutCard(
     { special: true, color: COMODIN, value: "Color Change" },
     "luis",
     "Amarillo"
   ),
 
-  "\n",
-
-  uno.putCard(
+  uno.playerPutCard(
     { special: true, color: "Amarillo", value: "¡Reversa!" },
     "miguel"
   ),
 
-  "\n",
+  uno.playerPutCard({ special: true, color: COMODIN, value: "+4" }, "luis", "Azul"),
 
-  uno.putCard({ special: true, color: COMODIN, value: "+4" }, "luis", "Azul"),
+  uno.playerPutCard({ special: true, color: "Azul", value: "¡Salto!" }, "zaniel"),
 
-  "\n",
+  uno.playerPutCard({ special: true, color: "Amarillo", value: "¡Salto!" }, "miguel"), //invalid
 
-  uno.putCard({ special: true, color: "Azul", value: "¡Salto!" }, "zaniel"),
+  uno.playerPutCard({ special: true, color: COMODIN, value: "+4" }, "luis", "Azul"),
 
-  "\n",
+  uno.playerPutCard({ special: true, color: "Azul", value: "+2" }, "drew"),
 
-  uno.putCard({ special: true, color: "Amarillo", value: "¡Salto!" }, "miguel"), //invalid
+  uno.playerPutCard({ special: true, color: "Azul", value: "+2" }, "zaniel"),
 
-  "\n",
-
-  uno.putCard({ special: true, color: COMODIN, value: "+4" }, "luis", "Azul"),
-
-  "\n",
-
-  uno.putCard({ special: true, color: "Azul", value: "+2" }, "drew"),
-
-  "\n",
-
-  uno.putCard({ special: true, color: "Azul", value: "+2" }, "zaniel"),
-
-  "\n",
-
-  uno.putCard(
+  uno.playerPutCard(
     { special: true, color: COMODIN, value: "Color Change" },
     "luis",
     "Rojo"
-  )
-);
-/* try {
-  const deck = JSON.stringify(this.deck);
-  fs.writeFileSync("deck.json", deck);
-  console.log("finish");
-} catch (error) {
-  console.log(error);
-} */
+  ),
+];
+const onlyMessages = gameExecution
+  .flat()
+  .filter((command) => command.type == SERVER_ACTION)
+  .map((command) => command.mesagge);
+//console.log(onlyMessages);
+fs.writeFileSync("commands.json", JSON.stringify(gameExecution));
+fs.writeFileSync("commandsText.json", JSON.stringify(onlyMessages));

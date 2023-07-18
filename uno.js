@@ -1,5 +1,3 @@
-const fs = require("fs");
-
 function shuffle(array) {
   for (let i = array.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
@@ -8,7 +6,7 @@ function shuffle(array) {
   return array;
 }
 
-const COMODIN = "comodin";
+const COMODIN = "Comodin";
 
 const TURN_ERROR = "Not player turn";
 const INVALID_CARD = "Invalid card put";
@@ -42,59 +40,59 @@ function messageObjectGenerator(infoObject) {
     nextPlayer,
     skipedPlayer,
   } = infoObject;
-  const basicObject = { type: "default", mesagge: "default message" };
+  const basicObject = { type: "default", message: "default message" };
   switch (type) {
     case TURN_ERROR:
       basicObject.type = ERROR;
-      basicObject.mesagge = `Not your turn (${player}). Current turn ${actualPlayer}`;
+      basicObject.message = `Not your turn (${player}). Current turn ${actualPlayer}`;
       break;
     case INVALID_CARD:
       basicObject.type = ERROR;
-      basicObject.mesagge = `Carta invalida, carta actual: ${currentColor} ${currentValue}`;
+      basicObject.message = `Carta invalida, carta actual: ${currentColor} ${currentValue}`;
       break;
     case NOT_ENOUGH_CARDS:
       basicObject.type = SERVER_ACTION;
-      basicObject.mesagge = `Jugador ${player} tomo ${drawedCards.length} cartas. no hay mas cartas para tomar`;
+      basicObject.message = `Jugador ${player} tomo ${drawedCards.length} cartas. no hay mas cartas para tomar`;
       break;
     case NO_CARD_TO_TAKE:
       basicObject.type = SERVER_ACTION;
-      basicObject.mesagge = `No hay cartas para tomar`;
+      basicObject.message = `No hay cartas para tomar`;
       break;
     case PLAYER_PUT_CARD:
       basicObject.type = SERVER_ACTION;
       if (colorChange !== undefined) {
-        basicObject.mesagge = `Jugador ${player} Puso: ${card.color} ${card.value} y cambio el color a ${colorChange}`;
+        basicObject.message = `Jugador ${player} Puso: ${card.color} ${card.value} y cambio el color a ${colorChange}`;
       } else {
-        basicObject.mesagge = `Jugador ${player} Puso: ${card.color} ${card.value}`;
+        basicObject.message = `Jugador ${player} Puso: ${card.color} ${card.value}`;
       }
       break;
     case PLAYER_FORCED_TO_DRAW:
       basicObject.type = SERVER_ACTION;
-      basicObject.mesagge = `Jugador ${player} Fue forzado a tomar ${drawedCards.length} cartas`;
+      basicObject.message = `Jugador ${player} Fue forzado a tomar ${drawedCards.length} cartas`;
       break;
     case PLAYER_WITHOUT_VALID_CARDS:
       basicObject.type = SERVER_ACTION;
-      basicObject.mesagge = `Jugador ${player} No tiene cartas validas: fue obligado a tomar una carta`;
+      basicObject.message = `Jugador ${player} No tiene cartas validas: fue obligado a tomar una carta`;
       break;
     case PLAYER_WIN:
       basicObject.type = SERVER_ACTION;
-      basicObject.mesagge = `Jugador ${player} gano`;
+      basicObject.message = `Jugador ${player} gano`;
       break;
     case PLAYER_TAKE_CARD:
       basicObject.type = SERVER_ACTION;
-      basicObject.mesagge = `Jugador ${player} tomo una carta`;
+      basicObject.message = `Jugador ${player} tomo una carta`;
       break;
     case NOT_PLAYER_CARD:
       basicObject.type = ERROR;
-      basicObject.mesagge = "You dont have this card";
+      basicObject.message = "You dont have this card";
       break;
     case PLAYER_UNO:
       basicObject.type = SERVER_ACTION;
-      basicObject.mesagge = `Jugador ${player} tiene una carta`;
+      basicObject.message = `Jugador ${player} tiene una carta`;
       break;
     case PLAYER_SKIP:
       basicObject.type = SERVER_ACTION;
-      basicObject.mesagge = `${player} salto a ${skipedPlayer} siguiente turno ${nextPlayer}`;
+      basicObject.message = `${player} salto a ${skipedPlayer} siguiente turno ${nextPlayer}`;
       break;
     default:
       break;
@@ -120,9 +118,27 @@ class unoGame {
 
   start() {
     this.fillDeck();
-    //this.deck = shuffle(this.deck);
-    //this.players = shuffle(this.players);
+    this.deck = shuffle(this.deck);
+    this.players = shuffle(this.players);
     this.dealCards();
+    this.setFirstCard();
+  }
+
+  setFirstCard() {
+    while (true) {
+      const card = this.deck.pop();
+      if (card.special == true) this.deck.unshift(card);
+      else {
+        this.currentColor = card.color;
+        this.currentValue = card.value;
+        this.trash.push(card);
+        break;
+      }
+    }
+  }
+
+  getCurrerntCard() {
+    return this.trash.at(-1);
   }
 
   dealCards() {
@@ -172,7 +188,11 @@ class unoGame {
     for (let index = 0; index < 4; index++) {
       const actualColor = Colors[index];
       for (let index = 0; index < 10; index++) {
-        const newCard = { special: false, color: actualColor, value: index };
+        const newCard = {
+          special: false,
+          color: actualColor,
+          value: String(index),
+        };
         this.deck.push(newCard);
         this.deck.push(newCard);
       }
@@ -248,14 +268,19 @@ class unoGame {
     const { value, color, special } = card;
     if (!special) {
       if (this.currentSum > 0) return false;
-      if (color !== this.currentColor && value !== this.currentValue)
+      if (
+        color !== this.currentColor &&
+        value !== this.currentValue &&
+        this.currentColor !== COMODIN
+      )
         return false;
       else return true;
     } else {
       if (
         color == this.currentColor ||
         value == this.currentValue ||
-        color == COMODIN
+        color == COMODIN ||
+        this.currentColor == COMODIN
       ) {
         if (this.currentSum > 0) {
           //valid cards for current sum (future disscucion)
@@ -305,7 +330,7 @@ class unoGame {
     if (cardIndexFound !== -1) return true;
     else return false;
   }
- 
+
   playerPutCard(card, player, colorChange) {
     const playerPlaceCard = this.putCard(player, card);
     if (playerPlaceCard !== true) return playerPlaceCard;
@@ -316,7 +341,9 @@ class unoGame {
     let skipedPlayerAction = [];
     if (special) {
       if (value === "+4" || value === "Color Change") {
-        this.currentColor = colorChange;
+        if (colorChange !== undefined) {
+          this.currentColor = colorChange;
+        }
       }
       if (value[0] == "+") {
         this.currentSum = this.currentSum + parseInt(value[1]);
@@ -335,7 +362,11 @@ class unoGame {
       }
     }
     const endTurnAction = this.endTurn(player);
-    const effectedActions = skipedPlayerAction.concat(endTurnAction);
+    let effectedActions = skipedPlayerAction;
+    if (endTurnAction !== false) {
+      effectedActions = effectedActions.concat(endTurnAction);
+    }
+
     return messageObjectGenerator({
       type: PLAYER_PUT_CARD,
       player,
@@ -427,87 +458,4 @@ class unoGame {
   }
 }
 
-const jugadores = ["luis", "miguel", "zaniel", "drew"];
-
-const uno = new unoGame(jugadores);
-
-uno.start();
-
-const gameExecution = [
-  uno.playerPutCard(
-    { special: true, color: "comodin", value: "Color Change" },
-    "luis",
-    "Amarillo"
-  ),
-
-  uno.playerPutCard({ special: true, color: "Amarillo", value: "¡Salto!" }, "miguel"),
-  //No SKIPED x Player message
-
-  uno.playerPutCard({ special: true, color: "Amarillo", value: "¡Salto!" }, "zaniel"), //invalid
-
-  uno.playerPutCard({ special: false, color: "Amarillo", value: 5 }, "drew"),
-
-  uno.playerPutCard(
-    { special: true, color: "comodin", value: "Color Change" },
-    "luis",
-    "rojo"
-  ),
-
-  uno.playerPutCard(
-    { special: true, color: "Amarillo", value: "+2" },
-    "miguel",
-    "Azul"
-  ), //invalid
-
-  uno.playerPutCard({ special: true, color: "Amarillo", value: "+2" }, "luis"), //invalid
-
-  uno.playerPutCard({ special: true, color: "Amarillo", value: "+2" }, "luis"), //invalid
-
-  uno.playerPutCard({ special: true, color: COMODIN, value: "+4" }, "miguel", "Azul"),
-  //No Forced draaws messages //pending 2 forced Draws messages
-  uno.playerPutCard(
-    { special: true, color: COMODIN, value: "+4" },
-    "luis",
-    "Amarillo"
-  ),
-
-  uno.playerPutCard({ special: true, color: "Amarillo", value: "+2" }, "miguel"),
-  //again pending 1 forced draw message
-  uno.playerPutCard({ special: true, color: "Amarillo", value: 0 }, "drew"),
-
-  uno.playerPutCard(
-    { special: true, color: COMODIN, value: "Color Change" },
-    "luis",
-    "Amarillo"
-  ),
-
-  uno.playerPutCard(
-    { special: true, color: "Amarillo", value: "¡Reversa!" },
-    "miguel"
-  ),
-
-  uno.playerPutCard({ special: true, color: COMODIN, value: "+4" }, "luis", "Azul"),
-
-  uno.playerPutCard({ special: true, color: "Azul", value: "¡Salto!" }, "zaniel"),
-
-  uno.playerPutCard({ special: true, color: "Amarillo", value: "¡Salto!" }, "miguel"), //invalid
-
-  uno.playerPutCard({ special: true, color: COMODIN, value: "+4" }, "luis", "Azul"),
-
-  uno.playerPutCard({ special: true, color: "Azul", value: "+2" }, "drew"),
-
-  uno.playerPutCard({ special: true, color: "Azul", value: "+2" }, "zaniel"),
-
-  uno.playerPutCard(
-    { special: true, color: COMODIN, value: "Color Change" },
-    "luis",
-    "Rojo"
-  ),
-];
-const onlyMessages = gameExecution
-  .flat()
-  .filter((command) => command.type == SERVER_ACTION)
-  .map((command) => command.mesagge);
-//console.log(onlyMessages);
-fs.writeFileSync("commands.json", JSON.stringify(gameExecution));
-fs.writeFileSync("commandsText.json", JSON.stringify(onlyMessages));
+module.exports = {unoGame}
